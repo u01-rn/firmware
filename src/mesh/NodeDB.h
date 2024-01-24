@@ -47,6 +47,7 @@ class NodeDB
     // Note: these two references just point into our static array we serialize to/from disk
     meshtastic_NodeInfoLite *meshNodes;
     pb_size_t *numMeshNodes;
+    uint8_t nodes[100] = {0};
 
   public:
     bool updateGUI = false; // we think the gui should definitely be redrawn, screen will clear this once handled
@@ -117,19 +118,20 @@ class NodeDB
 
     bool loadProto(const char *filename, size_t protoSize, size_t objSize, const pb_msgdesc_t *fields, void *dest_struct);
     bool saveProto(const char *filename, size_t protoSize, const pb_msgdesc_t *fields, const void *dest_struct);
+    bool saveNode(meshtastic_NodeInfoLite *node);
 
     void installRoleDefaults(meshtastic_Config_DeviceConfig_Role role);
 
     const meshtastic_NodeInfoLite *readNextMeshNode(uint32_t &readIndex);
-
+    
     meshtastic_NodeInfoLite *getMeshNodeByIndex(size_t x)
     {
-        assert(x < *numMeshNodes);
-        return &meshNodes[x];
+        assert(x < sizeof(nodes));
+        return getOrCreateMeshNode(nodes[x]);
     }
 
     meshtastic_NodeInfoLite *getMeshNode(NodeNum n);
-    size_t getNumMeshNodes() { return *numMeshNodes; }
+    size_t getNumMeshNodes() { return sizeof(nodes); }
 
     void setLocalPosition(meshtastic_Position position)
     {
@@ -156,6 +158,7 @@ class NodeDB
     /// purge db entries without user info
     void cleanupMeshDB();
 
+    const char *getNodeFilename(uint8_t nodeNum);
     /// Reinit device state from scratch (not loading from disk)
     void installDefaultDeviceState(), installDefaultChannels(), installDefaultConfig(), installDefaultModuleConfig();
 };

@@ -129,6 +129,7 @@ bool NodeDB::factoryReset()
 {
     LOG_INFO("Performing factory reset!\n");
     // first, remove the "/prefs" (this removes most prefs)
+    rmDir("/nodes");
     rmDir("/prefs");
     // second, install default state (this will deal with the duplicate mac address issue)
     installDefaultDeviceState();
@@ -353,29 +354,33 @@ void NodeDB::resetNodes()
 
 void NodeDB::removeNodeByNum(uint nodeNum)
 {
-    int newPos = 0, removed = 0;
-    for (int i = 0; i < *numMeshNodes; i++) {
-        if (meshNodes[i].num != nodeNum)
-            meshNodes[newPos++] = meshNodes[i];
-        else
-            removed++;
-    }
-    *numMeshNodes -= removed;
-    LOG_DEBUG("NodeDB::removeNodeByNum purged %d entries. Saving changes...\n", removed);
-    saveDeviceStateToDisk();
+#ifdef FSCom
+    FSCom.remove(getNodeFilename(nodeNum));
+#endif
+    // int newPos = 0, removed = 0;
+    // for (int i = 0; i < *numMeshNodes; i++) {
+    //     if (meshNodes[i].num != nodeNum)
+    //         meshNodes[newPos++] = meshNodes[i];
+    //     else
+    //         removed++;
+    // }
+    // *numMeshNodes -= removed;
+    // LOG_DEBUG("NodeDB::removeNodeByNum purged %d entries. Saving changes...\n", removed);
+    // saveDeviceStateToDisk();
 }
 
 void NodeDB::cleanupMeshDB()
 {
-    int newPos = 0, removed = 0;
-    for (int i = 0; i < *numMeshNodes; i++) {
-        if (meshNodes[i].has_user)
-            meshNodes[newPos++] = meshNodes[i];
-        else
-            removed++;
-    }
-    *numMeshNodes -= removed;
-    LOG_DEBUG("cleanupMeshDB purged %d entries\n", removed);
+    // TODO
+    // int newPos = 0, removed = 0;
+    // for (int i = 0; i < *numMeshNodes; i++) {
+    //     if (meshNodes[i].has_user)
+    //         meshNodes[newPos++] = meshNodes[i];
+    //     else
+    //         removed++;
+    // }
+    // *numMeshNodes -= removed;
+    // LOG_DEBUG("cleanupMeshDB purged %d entries\n", removed);
 }
 
 void NodeDB::installDefaultDeviceState()
@@ -407,7 +412,15 @@ void NodeDB::init()
     LOG_INFO("Initializing NodeDB\n");
     loadFromDisk();
     cleanupMeshDB();
-
+    #ifdef FSCom
+            FSCom.mkdir("/nodes");
+    #endif
+    // Migrate node details to file system
+    for(uint8_t i = 0; i < *numMeshNodes; i++) {
+        meshtastic_NodeInfoLite *node = getMeshNodeByIndex(i);
+        nodes[i] = node->num;
+        saveNode(node);
+    }
     uint32_t devicestateCRC = crc32Buffer(&devicestate, sizeof(devicestate));
     uint32_t configCRC = crc32Buffer(&config, sizeof(config));
     uint32_t channelFileCRC = crc32Buffer(&channelFile, sizeof(channelFile));
@@ -576,6 +589,11 @@ void NodeDB::loadFromDisk()
     }
 }
 
+bool NodeDB::saveNode(meshtastic_NodeInfoLite *node)
+{
+    return saveProto(getNodeFilename(node->num), meshtastic_NodeInfoLite_size, &meshtastic_NodeInfoLite_msg, &node);
+}
+
 /** Save a protobuf from a file, return true for success */
 bool NodeDB::saveProto(const char *filename, size_t protoSize, const pb_msgdesc_t *fields, const void *dest_struct)
 {
@@ -684,8 +702,8 @@ void NodeDB::saveToDisk(int saveWhat)
 
 const meshtastic_NodeInfoLite *NodeDB::readNextMeshNode(uint32_t &readIndex)
 {
-    if (readIndex < *numMeshNodes)
-        return &meshNodes[readIndex++];
+    if (readIndex < sizeof(nodes) && nodes[readIndex+1] != 0)
+        return getMeshNode(nodes[readIndex++]);
     else
         return NULL;
 }
@@ -863,11 +881,17 @@ uint8_t NodeDB::getMeshNodeChannel(NodeNum n)
 /// NOTE: This function might be called from an ISR
 meshtastic_NodeInfoLite *NodeDB::getMeshNode(NodeNum n)
 {
-    for (int i = 0; i < *numMeshNodes; i++)
-        if (meshNodes[i].num == n)
-            return &meshNodes[i];
+    meshtastic_NodeInfoLite * node = {0};
+    if (!loadProto(getNodeFilename(n), meshtastic_NodeInfoLite_size, sizeof(meshtastic_NodeInfoLite),
+              &meshtastic_NodeInfoLite_msg, &node))
+        return NULL;
 
-    return NULL;
+    return node;
+}
+
+char NodeDB::*getNodeFilename(uint8_t nodeNum) {
+    char *filename = new char[20];
+    sprintf(filename, "/nodes/%i.proto", nodeNum);  
 }
 
 /// Find a node in our DB, create an empty NodeInfo if missing
@@ -876,30 +900,29 @@ meshtastic_NodeInfoLite *NodeDB::getOrCreateMeshNode(NodeNum n)
     meshtastic_NodeInfoLite *lite = getMeshNode(n);
 
     if (!lite) {
-        if ((*numMeshNodes >= MAX_NUM_NODES) || (memGet.getFreeHeap() < meshtastic_NodeInfoLite_size * 3)) {
-            if (screen)
-                screen->print("warning: node_db_lite full! erasing oldest entry\n");
-            // look for oldest node and erase it
-            uint32_t oldest = UINT32_MAX;
-            int oldestIndex = -1;
-            for (int i = 0; i < *numMeshNodes; i++) {
-                if (meshNodes[i].last_heard < oldest) {
-                    oldest = meshNodes[i].last_heard;
-                    oldestIndex = i;
-                }
-            }
-            // Shove the remaining nodes down the chain
-            for (int i = oldestIndex; i < *numMeshNodes - 1; i++) {
-                meshNodes[i] = meshNodes[i + 1];
-            }
-            (*numMeshNodes)--;
-        }
+        // if ((*numMeshNodes >= MAX_NUM_NODES) || (memGet.getFreeHeap() < meshtastic_NodeInfoLite_size * 3)) {
+        //     if (screen)
+        //         screen->print("warning: node_db_lite full! erasing oldest entry\n");
+        //     // look for oldest node and erase it
+        //     uint32_t oldest = UINT32_MAX;
+        //     int oldestIndex = -1;
+        //     for (int i = 0; i < *numMeshNodes; i++) {
+        //         if (meshNodes[i].last_heard < oldest) {
+        //             oldest = meshNodes[i].last_heard;
+        //             oldestIndex = i;
+        //         }
+        //     }
+        //     // Shove the remaining nodes down the chain
+        //     for (int i = oldestIndex; i < *numMeshNodes - 1; i++) {
+        //         meshNodes[i] = meshNodes[i + 1];
+        //     }
+        //     (*numMeshNodes)--;
+        // }
         // add the node at the end
-        lite = &meshNodes[(*numMeshNodes)++];
-
         // everything is missing except the nodenum
         memset(lite, 0, sizeof(*lite));
         lite->num = n;
+        saveNode(lite);
     }
 
     return lite;
