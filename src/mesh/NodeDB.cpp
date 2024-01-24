@@ -900,25 +900,25 @@ meshtastic_NodeInfoLite *NodeDB::getOrCreateMeshNode(NodeNum n)
     meshtastic_NodeInfoLite *lite = getMeshNode(n);
 
     if (!lite) {
-        if ((*numMeshNodes >= MAX_NUM_NODES) || (memGet.getFreeHeap() < meshtastic_NodeInfoLite_size * 3)) {
-            if (screen)
-                screen->print("warning: node_db_lite full! erasing oldest entry\n");
-            LOG_INFO("warning: node_db_lite full! erasing oldest entry\n");
-            // look for oldest node and erase it
-            uint32_t oldest = UINT32_MAX;
-            int oldestIndex = -1;
-            for (int i = 1; i < *numMeshNodes; i++) {
-                if (meshNodes[i].last_heard < oldest) {
-                    oldest = meshNodes[i].last_heard;
-                    oldestIndex = i;
-                }
-            }
-            // Shove the remaining nodes down the chain
-            for (int i = oldestIndex; i < *numMeshNodes - 1; i++) {
-                meshNodes[i] = meshNodes[i + 1];
-            }
-            (*numMeshNodes)--;
-        }
+        // if ((*numMeshNodes >= MAX_NUM_NODES) || (memGet.getFreeHeap() < meshtastic_NodeInfoLite_size * 3)) {
+        //     if (screen)
+        //         screen->print("warning: node_db_lite full! erasing oldest entry\n");
+        //     LOG_INFO("warning: node_db_lite full! erasing oldest entry\n");
+        //     // look for oldest node and erase it
+        //     uint32_t oldest = UINT32_MAX;
+        //     int oldestIndex = -1;
+        //     for (int i = 1; i < *numMeshNodes; i++) {
+        //         if (meshNodes[i].last_heard < oldest) {
+        //             oldest = meshNodes[i].last_heard;
+        //             oldestIndex = i;
+        //         }
+        //     }
+        //     // Shove the remaining nodes down the chain
+        //     for (int i = oldestIndex; i < *numMeshNodes - 1; i++) {
+        //         meshNodes[i] = meshNodes[i + 1];
+        //     }
+        //     (*numMeshNodes)--;
+        // }
         // add the node at the end
         // everything is missing except the nodenum
         memset(lite, 0, sizeof(*lite));
