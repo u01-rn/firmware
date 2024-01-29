@@ -413,14 +413,17 @@ void NodeDB::init()
     LOG_INFO("Initializing NodeDB\n");
     loadFromDisk();
     cleanupMeshDB();
-    #ifdef FSCom
-            FSCom.mkdir("/nodes");
-    #endif
+#ifdef FSCom
+    rmDir("/nodes");
+    FSCom.mkdir("/nodes");
+#endif
     // Migrate node details to file system
-    for(uint8_t i = 0; i < *numMeshNodes; i++) {
-        meshtastic_NodeInfoLite *node = getMeshNodeByIndex(i);
-        nodes[i] = node->num;
-        saveNode(node);
+    for (uint8_t i = 0; i < *numMeshNodes; i++) {
+        // meshtastic_NodeInfoLite *node = getMeshNodeByIndex(i);
+        // nodes[i] = node->num;
+        meshtastic_NodeInfoLite *node = &meshNodes[i];
+        LOG_DEBUG("Migrating node %d\n", node->num);
+        saveProto(getNodeFilename(node->num), meshtastic_NodeInfoLite_size, &meshtastic_NodeInfoLite_msg, node);
     }
     uint32_t devicestateCRC = crc32Buffer(&devicestate, sizeof(devicestate));
     uint32_t configCRC = crc32Buffer(&config, sizeof(config));
@@ -590,11 +593,6 @@ void NodeDB::loadFromDisk()
     }
 }
 
-bool NodeDB::saveNode(meshtastic_NodeInfoLite *node)
-{
-    return saveProto(getNodeFilename(node->num), meshtastic_NodeInfoLite_size, &meshtastic_NodeInfoLite_msg, &node);
-}
-
 /** Save a protobuf from a file, return true for success */
 bool NodeDB::saveProto(const char *filename, size_t protoSize, const pb_msgdesc_t *fields, const void *dest_struct)
 {
@@ -703,7 +701,7 @@ void NodeDB::saveToDisk(int saveWhat)
 
 const meshtastic_NodeInfoLite *NodeDB::readNextMeshNode(uint32_t &readIndex)
 {
-    if (readIndex < sizeof(nodes) && nodes[readIndex+1] != 0)
+    if (readIndex < sizeof(nodes) && nodes[readIndex + 1] != 0)
         return getMeshNode(nodes[readIndex++]);
     else
         return NULL;
@@ -881,22 +879,26 @@ uint8_t NodeDB::getMeshNodeChannel(NodeNum n)
 /// NOTE: This function might be called from an ISR
 meshtastic_NodeInfoLite *NodeDB::getMeshNode(NodeNum n)
 {
-    meshtastic_NodeInfoLite * node = {0};
+    LOG_DEBUG("getMeshNode 0x%x\n", n);
+    meshtastic_NodeInfoLite *node = {0};
     if (!loadProto(getNodeFilename(n), meshtastic_NodeInfoLite_size, sizeof(meshtastic_NodeInfoLite),
-              &meshtastic_NodeInfoLite_msg, &node))
+                   &meshtastic_NodeInfoLite_msg, node))
         return NULL;
 
     return node;
 }
 
-char NodeDB::*getNodeFilename(uint8_t nodeNum) {
-    char *filename = new char[20];
-    sprintf(filename, "/nodes/%i.proto", nodeNum);  
+const char *NodeDB::getNodeFilename(uint8_t nodeNum)
+{
+    char *filename = new char[24];
+    sprintf(filename, "/nodes/%d.proto", nodeNum);
+    return filename;
 }
 
 /// Find a node in our DB, create an empty NodeInfo if missing
 meshtastic_NodeInfoLite *NodeDB::getOrCreateMeshNode(NodeNum n)
 {
+    LOG_DEBUG("getOrCreateMeshNode 0x%d\n", n);
     meshtastic_NodeInfoLite *lite = getMeshNode(n);
 
     if (!lite) {
@@ -923,7 +925,7 @@ meshtastic_NodeInfoLite *NodeDB::getOrCreateMeshNode(NodeNum n)
         // everything is missing except the nodenum
         memset(lite, 0, sizeof(*lite));
         lite->num = n;
-        saveNode(lite);
+        saveProto(getNodeFilename(n), meshtastic_NodeInfoLite_size, &meshtastic_NodeInfoLite_msg, lite);
     }
 
     return lite;

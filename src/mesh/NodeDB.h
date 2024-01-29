@@ -118,12 +118,11 @@ class NodeDB
 
     bool loadProto(const char *filename, size_t protoSize, size_t objSize, const pb_msgdesc_t *fields, void *dest_struct);
     bool saveProto(const char *filename, size_t protoSize, const pb_msgdesc_t *fields, const void *dest_struct);
-    bool saveNode(meshtastic_NodeInfoLite *node);
 
     void installRoleDefaults(meshtastic_Config_DeviceConfig_Role role);
 
     const meshtastic_NodeInfoLite *readNextMeshNode(uint32_t &readIndex);
-    
+
     meshtastic_NodeInfoLite *getMeshNodeByIndex(size_t x)
     {
         assert(x < sizeof(nodes));
@@ -158,7 +157,7 @@ class NodeDB
     /// purge db entries without user info
     void cleanupMeshDB();
 
-    const char *getNodeFilename(uint8_t nodeNum);
+    static const char *getNodeFilename(uint8_t nodeNum);
     /// Reinit device state from scratch (not loading from disk)
     void installDefaultDeviceState(), installDefaultChannels(), installDefaultConfig(), installDefaultModuleConfig();
 };
