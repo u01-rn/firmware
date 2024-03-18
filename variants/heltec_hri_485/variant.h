@@ -29,7 +29,7 @@
 #define LORA_DIO2 13 // (SX1262 BUSY)
 #define LORA_DIO3    // DIO3 is connected on the PCB, but not to the microcontroller.
 #define LORA_CS 8 //NSS => GPIO8
-#define LORA_SCK 9 //SCK => GPIO9
+#define LORA_SCK 10 //SCK => GPIO10
 #define LORA_MOSI 7 // GPIO7 is MTDO, MTDO => MOSI
 #define LORA_MISO 6 // GPIO6 is MTCK, MTCK => MISO
 
@@ -40,5 +40,5 @@
 #define SX126X_BUSY LORA_DIO2
 #define SX126X_RESET LORA_RESET
 
-#define SX126X_DIO2_AS_RF_SWITCH
-#define SX126X_DIO3_TCXO_VOLTAGE 1.8
+//#define SX126X_DIO2_AS_RF_SWITCH
+//#define SX126X_DIO3_TCXO_VOLTAGE 1.8
